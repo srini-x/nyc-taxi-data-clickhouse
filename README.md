@@ -5,6 +5,8 @@ open source column-oriented database by following the instructions of Mark
 Litwintschik from his blog
  [1.1 Billion Taxi Rides on ClickHouse & an Intel Core i5][mark-clickhouse].
 
+[![benchmark-video-thumb][benchmark-thumb]][benchmark-video]
+
 
 ## Table of Contents
 
@@ -508,6 +510,8 @@ for line in sys.stdin:
                     for item in line.strip().split(',')])
 ```
 
+![importing-into-clickhouse-img]
+
 #### 4. Import the data into `trips` table
 
 ```bash
@@ -518,6 +522,8 @@ time (for filename in /mnt/Sata6/nyc-taxi-data-trips-srini/trips_x*.csv.gz; do
             clickhouse-client --query="INSERT INTO trips FORMAT CSV"
         done)
 ```
+
+![clickhouse-import-complete-img][clickhouse-import-complete-img]
 
 #### 5. Create `trips_mergetree` table
 
@@ -770,3 +776,7 @@ $ clickhouse-client --query "select count(*) from datasets.trips_mergetree"
 [query3]: ./img/query3.png
 [query4]: ./img/query4.png
 [postgre-row-counts-img]: ./img/postgres_row_counts.png
+[benchmark-thumb]: ./img/benchmark_thumb.png  "click here to watch on Youtube"
+[benchmark-video]: https://www.youtube.com/watch?v=GVnK_JhxFCs
+[clickhouse-import-complete-img]: ./img/clickhouse_import_complete.png
+[importing-into-clickhouse-img]: ./img/importing_into_clickhouse.png
