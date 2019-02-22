@@ -552,14 +552,49 @@ FROM trips
 
 ## Benchmarking
 
+#### Query 1
+
+**Query**:
 
 ```sql
 SELECT cab_type, count(*) FROM trips_mergetree GROUP BY cab_type
 ```
 
+**Perf test**:
+
+```bash
+$ query="SELECT cab_type, count(*) FROM trips_mergetree GROUP BY cab_type"
+$ sudo perf stat -r 10 clickhouse-client --query=$query
+
+1.15206 +- 0.00993 seconds time elapsed  ( +-  0.86% )
+```
+
+![query1 screenshot][query1]
+
+
+#### Query 2
+
+**Query**:
+
 ```sql
 SELECT passenger_count, avg(total_amount) FROM trips_mergetree GROUP BY passenger_count
 ```
+
+**Perf test**:
+
+```bash
+$ query="SELECT passenger_count, avg(total_amount) FROM trips_mergetree GROUP BY passenger_count"
+$ sudo perf stat -r 10 clickhouse-client --query=$query
+
+3.59093 +- 0.00919 seconds time elapsed  ( +-  0.26% )
+```
+
+![query2 screenshot][query2]
+
+
+#### Query 3
+
+**Query**:
 
 ```sql
 SELECT passenger_count, toYear(pickup_date) AS year, count(*)
@@ -567,18 +602,47 @@ FROM trips_mergetree
 GROUP BY passenger_count, year
 ```
 
-```sql
-SELECT passenger_count,
-       toYear(pickup_date) AS year,
-       round(trip_distance) AS distance,
-       count(*)
-FROM trips_mergetree
-GROUP BY passenger_count,
-         year,
-         distance
-ORDER BY year,
-         count(*) DESC
+**Perf test**:
+
+```bash
+$ query="SELECT passenger_count, toYear(pickup_date) AS year, count(*) \
+FROM trips_mergetree \
+GROUP BY passenger_count, year"
+$ sudo perf stat -r 10 click-house-client --query=$query
+
+5.62999 +- 0.00618 seconds time elapsed  ( +-  0.11% )
 ```
+
+![query3 screenshot][query3]
+
+
+#### Query 4
+
+**Query**:
+
+```sql
+SELECT passenger_count, toYear(pickup_date) AS year,
+       round(trip_distance) AS distance, count(*)
+FROM trips_mergetree
+GROUP BY passenger_count, year, distance
+ORDER BY year, count(*) DESC
+```
+
+**Perf test**:
+
+```bash
+$ query="SELECT passenger_count, toYear(pickup_date) AS year, \
+round(trip_distance) AS distance, count(*) \
+FROM trips_mergetree \
+GROUP BY passenger_count, year, distance \
+ORDER BY year, count(*) DESC"
+$ sudo perf stat -r 10 click-house-client --query=$query
+
+8.745 +- 0.233 seconds time elapsed  ( +-  2.66% )
+```
+
+![query4 screenshot][query4]
+
 
 
 ## APPENDIX A: AWS EC2 Instance
@@ -670,3 +734,7 @@ $ clickhouse-client --query "select count(*) from datasets.trips_mergetree"
 [ec2-instance-img]: ./img/ec2_instance.png
 [lines-in-trips-img]: ./img/lines_in_trips.png
 [import-script-progress-img]: ./img/import_script_progress.png
+[query1]: ./img/query1.png
+[query2]: ./img/query2.png
+[query3]: ./img/query3.png
+[query4]: ./img/query4.png
