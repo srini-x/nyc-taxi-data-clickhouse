@@ -15,7 +15,7 @@ Litwintschik from his blog
 - [Obtaining Data](#obtaining-data)  
 - [Create ClickHouse Database Using Raw Data](#create-clickhouse-database-using-raw-data)  
 - [Benchmarking](#benchmarking)  
-- [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance)  
+- [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance) - This section will be updated once the ClickHouse tables are created.  
 - [APPENDIX B: Use Prepared Partitions from ClickHouse](#appendix-b-use-prepared-partitions-from-clickhouse)
 
 
