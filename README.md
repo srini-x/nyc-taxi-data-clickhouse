@@ -15,6 +15,7 @@ Litwintschik from his blog
 - [Obtaining Data](#obtaining-data)  
 - [Create ClickHouse Database Using Raw Data](#create-clickhouse-database-using-raw-data)  
 - [Benchmarking](#benchmarking)  
+- [Improving the Benchmarking Process with Automation](#improving-the-benchmarking-process-with-automation)  
 - [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance) - This section will be updated once the ClickHouse tables are created.  
 - [APPENDIX B: Use Prepared Partitions from ClickHouse](#appendix-b-use-prepared-partitions-from-clickhouse)
 
@@ -681,6 +682,42 @@ $ sudo perf stat -r 10 click-house-client --query=$query
 ![query4 screenshot][query4]
 
 
+## Improving the Benchmarking Process with Automation
+
+After running the benchmarks as shown above interactively in the terminal,
+I noticed that the accuracy was inconsistent.
+
+I was able to achieve less than 1% variation over 10 runs on all 4 queries repatedly
+using the following script to run the benchmarks.
+
+This script not only improves the accuracy but also makes it convinient to run
+the benchmarks.
+
+```bash
+$ cat benchmark_clickhouse.sh
+
+#!/usr/bin/env bash
+
+queries=(
+"SELECT cab_type, count(*) FROM trips_mergetree GROUP BY cab_type"
+"SELECT passenger_count, avg(total_amount) FROM trips_mergetree GROUP BY passenger_count"
+"SELECT passenger_count, toYear(pickup_date) AS year, count(*) \
+FROM trips_mergetree \
+GROUP BY passenger_count, year"
+"SELECT passenger_count, toYear(pickup_date) AS year, \
+round(trip_distance) AS distance, count(*) \
+FROM trips_mergetree \
+GROUP BY passenger_count, year, distance \
+ORDER BY year, count(*) DESC"
+)
+
+printf  "Benchmarking ClickHouse ...\n\n"
+
+for query in "${queries[@]}"; do
+    printf "\n%s\n\n" "$query"
+    sudo perf stat -r 10 clickhouse-client --query="$query" > /dev/null
+done
+```
 
 ## APPENDIX A: AWS EC2 Instance
 
@@ -777,6 +814,6 @@ $ clickhouse-client --query "select count(*) from datasets.trips_mergetree"
 [query4]: ./img/query4.png
 [postgre-row-counts-img]: ./img/postgres_row_counts.png
 [benchmark-thumb]: ./img/benchmark_thumb.png  "click here to watch on Youtube"
-[benchmark-video]: https://www.youtube.com/watch?v=GVnK_JhxFCs
+[benchmark-video]: https://www.youtube.com/watch?v=CZJX4-SahHM
 [clickhouse-import-complete-img]: ./img/clickhouse_import_complete.png
 [importing-into-clickhouse-img]: ./img/importing_into_clickhouse.png
