@@ -5,22 +5,33 @@ open source column-oriented database by following the instructions of Mark
 Litwintschik from his blog
  [1.1 Billion Taxi Rides on ClickHouse & an Intel Core i5][mark-clickhouse].
 
+[![benchmark-video-thumb][benchmark-thumb]][benchmark-video]
+
 
 ## Table of Contents
 
 - [System Setup](#system-setup)  
-- [Before we bigin](#before-we-begin)  
+- [Before we begin](#before-we-begin)  
 - [Obtaining Data](#obtaining-data)  
 - [Create ClickHouse Database Using Raw Data](#create-clickhouse-database-using-raw-data)  
 - [Benchmarking](#benchmarking)  
-- [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance)  
+- [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance) - This section will be updated once the ClickHouse tables are created.  
 - [APPENDIX B: Use Prepared Partitions from ClickHouse](#appendix-b-use-prepared-partitions-from-clickhouse)
 
 
 ## System Setup
 
-There are two options available here. Either use a local machine or an AWS EC2
-instance.
+There are two options available here. Use a local machine or an AWS EC2
+instance. I explored both options. AWS is more practical, easily available
+and it is easy to reproduce the benchmark results.
+
+In this case, AWS instance is still in the process of exporting data from
+PostgreSQL. So, I am using the data from local machine. All the commands are
+same except for the paths and small differences due to the use of different
+versions of Ubuntu, 14.04 and 18.04.
+
+Details of AWS instance are listed in the [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance)
+section.
 
 ### Local Desktop Configuration
 
@@ -32,7 +43,7 @@ sufficient space on the SSD to fit all the data.
 **Memory**: 32GB  
 **Storage**: SSD with read/write speeds > 500 MB/s  
 **OS**: Ubuntu 18.04.2 LTS  
-**Software**: Postgresql-10, Postgis-2.4  
+**Software**: PostgreSQL-10, Postgis-2.4, ClickHouse 19.3.4  
 
 
 ## Before we begin
@@ -45,25 +56,25 @@ new to installing and managing PostgreSQL.
 Mark did a good job of setting the expectations on how much storage space we
 need and how long it might take. Following is the summary of my experience.
 
-#### Raw Dataset
+#### Raw dataset
 
 **Size**: 259GB  
-**Time to Download**: 3 hours  
+**Time to Download**: ~3 hours  
 
 #### PostgreSQL Database
 
-**Size**: 240GB (just over a billion rows, still in progress ...)  
-**Time to create**: ~20 hours (just over a billion rows, still in progress ...)
+**Size**: 348GB  
+**Time to create**: ~21 hours
 
-#### Compressed `csv` files exported from Postgres database:
+#### Compressed `csv` files exported from PostgreSQL database:
 
-ClickHouse documentations states that it took them 5 hours.
-I am yet to find out for myself.
+**Size**: 82GB  
+**Time to create**: 2 hours 48 minutes
 
 #### ClickHouse database
 
-According to Mark, it took him 3 hours 27 minutes and 35 seconds.
-I am yet to find out for myself.
+**Size**: 106GB  
+**Time to create**: 4 hours 40 minutes
 
 ### PostgreSQL Setup Notes
 
@@ -75,7 +86,7 @@ the following are the steps to follow to avoid them.
 
 Large storage space for me is available on a separate partition both on local
 machine and on AWS. On local machine, it is `/mnt/PGDATA` and on AWS it is
-`/PGDATA`.
+`/Data/PGDATA`.
 
 1. Make `postgres` the owner of the `data_directory`.
 
@@ -91,13 +102,13 @@ $ cd /mnt
 $ sudo chmod 700 PGDATA
 ```
 
-#### 2. Modifying the PostgreSQL config file
+#### 2. Modifying the PostgreSQL configuration file
 
 PostgreSQL uses `/var/lib/postgresql/10/main/` as it's data store by default.
 This will cause the root partition to get full and the `./import_trip_data.sh`
 will abort due to lack of space on disk.
 
-We need to change the config file located in `/etc/postgresql/10/main/postgresql.conf`
+We need to change the configuration file located in `/etc/postgresql/10/main/postgresql.conf`
 to tell PostgreSQL to use the newly created partition to store it's data.
 
 
@@ -113,13 +124,13 @@ $ sudo systemctl stop postgresql
 $ sudo cp -av /var/lib/postgresql/10/main/* /mnt/PGDATA/
 ```
 
-3. Modify the config
+3. Modify the configuration
 
 ```bash
 $ sudo vim `/etc/postgresql/10/main/postgresql.conf`
 ```
 
-from my `/etc/postgresql/10/main/postgresql.conf`
+From my `/etc/postgresql/10/main/postgresql.conf`
 
 ```
 #------------------------------------------------------------------------------
@@ -142,8 +153,7 @@ $ sudo systemctl start postgresql
 
 ## Obtaining Data
 
-
-Raw New York taxi trip data is avialble from [NYC Taxi and Limousine
+Raw New York taxi trip data is available from [NYC Taxi and Limousine
 Commission][raw-nyc-data].
 
 Todd Schneider provided detailed instructions on how to
@@ -151,27 +161,21 @@ Todd Schneider provided detailed instructions on how to
 post [Analyzing 1.1 Billion NYC Taxi and Uber Trips, with a Vengeance][toddwschneider-blog].
 
 Mark Litwintschik used this data to benchmark Redshift. In his blog [A Billion
-Taxi Rides in Redshift][mark-redshift] Mark detailed how to export all the 1.1
+Taxi Rides in Redshift][mark-redshift], Mark detailed how to export all the 1.1
 Billion rows from PostgreSQL into compressed `csv` files. Approximately 50 to 60
 `gz` files of size 2GB each.
 
 Later, Mark used the same dataset to benchmark ClickHouse in his blog [1.1
 Billion Taxi Rides on ClickHouse & an Intel Core i5][mark-clickhouse]. This
-same procedure is also avilable in the [ClickHouse
+same procedure is also available in the [ClickHouse
 documentation][clickhouse-docs].
 
-
-**Below are the steps I followed to create the ClickHouse database starting
-with raw data**:
-
-These are the sequence of commands that were executed on the local machine.
-Details on AWS EC2 instance are at the end of this section. All the commans are
-same except for the paths and small differences due to the use of different OS
-versions.
-
 Data can also be obtained in the form of prepared partitions available from
-ClickHouse. The instructions to obtain data in this form are available at the
-end of this section.
+ClickHouse. The instructions to obtain data in this form are available in the
+[APPENDIX B: Use Prepared Partitions from ClickHouse](#appendix-b-use-prepared-partitions-from-clickhouse) section.
+
+**Below are the steps I followed to create the ClickHouse database, starting
+with raw data on the local machine**:
 
 ### 1. Clone `toddwschneider/nyc-taxi-data`
 
@@ -188,7 +192,7 @@ $ ./download_raw_data.sh && ./remove_bad_rows.sh
 
 ### 3. Assign permissions to Ubuntu user account to work on PostgreSQL.
 
-Replace `<ubuntu-user>` below with your ubuntu username.
+Replace `<ubuntu-user>` below with your Ubuntu username.
 
 ```bash
 $ sudo su - postgres -c \
@@ -213,7 +217,7 @@ monitor the progress.
 
 #### Count number of rows in the table `trips` in PostgreSQL
 
-1. Connect to postgresql
+1. Connect to PostgreSQL
 
 ```bash
 $ psql -d "nyc-taxi-data"
@@ -244,12 +248,30 @@ $ ./download_raw_2014_uber_data.sh
 $ ./import_2014_uber_trip_data.sh
 ```
 
-### 7. A look at `trips` table after downloading and importing all the data
+### 7. A look at tables in PostgreSQL after downloading and importing all the data
 
+1. Connect to PostgreSQL
 
+```bash
+$ psql "nyc-taxi-data"
+```
+
+2. Execute the query below
+
+```sql
+SELECT relname table_name,
+       lpad(to_char(reltuples, 'FM9,999,999,999'), 13) row_count
+FROM pg_class
+LEFT JOIN pg_namespace
+    ON (pg_namespace.oid = pg_class.relnamespace)
+WHERE nspname NOT IN ('pg_catalog', 'information_schema')
+AND relkind = 'r'
+ORDER BY reltuples DESC;
+```
+
+![postgre-tables][postgre-row-counts-img]
 
 ### 8. Exporting the Data
-
 
 #### 1. Create a directory with the right permissions to export the data from PostgreSQL.
 
@@ -260,7 +282,6 @@ $ sudo chown -R postgres:postgres /mnt/Sata6/nyc-taxi-data-trips
 
 #### 2. Connect to PostgreSQL and start the export.
 
-
 1. Connect to `nyc-taxi-data`
 
 ```bash
@@ -269,13 +290,12 @@ $ psql -d "nyc-taxi-data"
 
 2. Start the export
 
-The following command has been modified from [] to account for the changes in
-latest data. Columns `pickup` and `dropoff` from [] are replaced by
+The following command has been modified from [Mark's guide][mark-redshift] to account for the changes in
+latest data. Columns `pickup` and `dropoff` from Mark's guide are replaced by
 `pickup_location_id` and `dropoff_location_id` in the latest schema used to
-create the trips table. Their datatypes also changed from `String` to `int`.
+create the trips table. Their datatypes also changed from `String` to `Int`.
 
 This process will take ~3 hours.
-
 
 ```sql
 nyc-taxi-data=# COPY (
@@ -365,7 +385,7 @@ $ sudo chown -R clickhouse:clickhouse /mnt/Sata7/clickhouse
 $ sudo chmod 700 /mnt/Sata7/clickhouse
 ```
 
-#### 2. Modify ClickHouse config file
+#### 2. Modify ClickHouse configuration file
 
 ```bash
 $ sudo vim /etc/clickhouse-server/config.xml
@@ -477,7 +497,22 @@ CREATE TABLE trips (
 ) ENGINE = Log;
 ```
 
-#### 3. Import the data into `trips` table
+#### 3. Create `trans.py`
+
+```python
+#!/usr/bin/env python
+
+import sys
+
+
+for line in sys.stdin:
+    print ','.join([item if len(item.strip()) else '\N'
+                    for item in line.strip().split(',')])
+```
+
+![importing-into-clickhouse-img]
+
+#### 4. Import the data into `trips` table
 
 ```bash
 time (for filename in /mnt/Sata6/nyc-taxi-data-trips-srini/trips_x*.csv.gz; do
@@ -488,7 +523,9 @@ time (for filename in /mnt/Sata6/nyc-taxi-data-trips-srini/trips_x*.csv.gz; do
         done)
 ```
 
-#### 4. Create `trips_mergetree` table
+![clickhouse-import-complete-img][clickhouse-import-complete-img]
+
+#### 5. Create `trips_mergetree` table
 
 
 ```bash
@@ -648,13 +685,13 @@ $ sudo perf stat -r 10 click-house-client --query=$query
 ## APPENDIX A: AWS EC2 Instance
 
 Same steps from the above section are followed on the EC2 instance.
-This section has screenshots and video showing the config details and progress
+This section has screenshots and video showing the configuration details and progress
 on AWS.
 
 AWS EC2 is the more practical and ubiquitous option. This is also helpful in
 reproducing the benchmark results by others by following my process.
 
-### AWS EC2 Config
+### AWS EC2 Configuration
 
 **Instance Type**: m5.xlarge  
 **vCPUs**: 4  
@@ -738,3 +775,8 @@ $ clickhouse-client --query "select count(*) from datasets.trips_mergetree"
 [query2]: ./img/query2.png
 [query3]: ./img/query3.png
 [query4]: ./img/query4.png
+[postgre-row-counts-img]: ./img/postgres_row_counts.png
+[benchmark-thumb]: ./img/benchmark_thumb.png  "click here to watch on Youtube"
+[benchmark-video]: https://www.youtube.com/watch?v=GVnK_JhxFCs
+[clickhouse-import-complete-img]: ./img/clickhouse_import_complete.png
+[importing-into-clickhouse-img]: ./img/importing_into_clickhouse.png
