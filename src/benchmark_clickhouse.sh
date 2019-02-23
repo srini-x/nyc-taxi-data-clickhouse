@@ -13,13 +13,13 @@ GROUP BY passenger_count, year, distance \
 ORDER BY year, count(*) DESC"
 )
 
-printf  "Benchmarking ClickHouse ...\n\n"
+log_dir='../bm_logs'
+mkdir -p "${log_dir}"
+log_name="${log_dir}/clickhouse_bm_$(date +%F_%H-%M-%S).log"
+
+printf "\nBenchmarking ClickHouse ...\n\n"
 
 for query in "${queries[@]}"; do
-    printf "\n%s\n\n" "$query"
-    sudo perf stat -r 10 clickhouse-client --query="$query" > /dev/null
+    printf "%s\n\n" "$query"
+    sudo perf stat -r 10 -o "${log_name}" --append clickhouse-client --query="${query}" > /dev/null
 done
-
-# printf  "Benchmarking PostgreSQL ...\n\n"
-# printf  "SELECT cab_type_id, count(*) FROM trips GROUP BY cab_type_id\n\n"
-# sudo perf stat -r 2 sudo su - postgres -c 'psql "nyc-taxi-data" -c "SELECT cab_type_id, count(*) FROM trips GROUP BY cab_type_id"'
