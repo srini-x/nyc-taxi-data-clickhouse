@@ -16,10 +16,11 @@ ORDER BY year, count(*) DESC"
 log_dir='../bm_logs'
 mkdir -p "${log_dir}"
 log_name="${log_dir}/clickhouse_bm_$(date +%F_%H-%M-%S).log"
+num_repeats=${1:-1}
 
 printf "\nBenchmarking ClickHouse ...\n\n"
 
 for query in "${queries[@]}"; do
     printf "%s\n\n" "$query"
-    sudo perf stat -r 10 -o "${log_name}" --append clickhouse-client --query="${query}" > /dev/null
+    sudo perf stat -r "${num_repeats}" -o "${log_name}" --append clickhouse-client --query="${query}" > /dev/null
 done
