@@ -13,10 +13,11 @@ GROUP BY passenger_count, year, distance \
 ORDER BY year, count(*) DESC"
 )
 
-log_dir='../bm_logs'
+script_dir=$(dirname $(readlink -f $0))
+log_dir="${script_dir}/../bm_logs"
 mkdir -p "${log_dir}"
-log_name="${log_dir}/clickhouse_bm_$(date +%F_%H-%M-%S).log"
 num_repeats=${1:-1}
+log_name="${log_dir}/clickhouse_bm_${num_repeats}r_$(date +%F_%H-%M-%S).log"
 
 printf "\nBenchmarking ClickHouse ...\n\n"
 
