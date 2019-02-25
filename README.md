@@ -8,6 +8,12 @@ Litwintschik from his blog
 [![benchmark-video-thumb][benchmark-thumb]][benchmark-video]
 
 
+[![aws-video1-thumb][aws-video1-thumb]][aws-video1]
+
+Benchmark results from the above run are available at
+[ClickHouse Performance on AWS EC2 - 10 runs](#clickhouse-performance-on-aws-ec2---10-runs)
+
+
 ## Table of Contents
 
 - [System Setup](#system-setup)  
@@ -15,9 +21,11 @@ Litwintschik from his blog
 - [Obtaining Data](#obtaining-data)  
 - [Create ClickHouse Database Using Raw Data](#create-clickhouse-database-using-raw-data)  
 - [Benchmarking](#benchmarking)  
-- [Improving the Benchmarking Process with Automation](#improving-the-benchmarking-process-with-automation)  
-- [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance) - This section will be updated once the ClickHouse tables are created.  
-- [APPENDIX B: Use Prepared Partitions from ClickHouse](#appendix-b-use-prepared-partitions-from-clickhouse)
+    + [Improving the Benchmarking Process with Automation](#improving-the-benchmarking-process-with-automation)  
+    + [Comparing Benchmark Results](#comparing-benchmark-results)
+- [ClickHouse on AWS EC2 Instance](#clickhouse-on-aws-ec2-instance)
+    + [ClickHouse Performance on AWS EC2 - 10 runs](#clickhouse-performance-on-aws-ec2---10-runs)
+- [APPENDIX A: Use Prepared Partitions from ClickHouse](#appendix-a-use-prepared-partitions-from-clickhouse)
 
 
 ## System Setup
@@ -31,7 +39,7 @@ PostgreSQL. So, I am using the data from local machine. All the commands are
 same except for the paths and small differences due to the use of different
 versions of Ubuntu, 14.04 and 18.04.
 
-Details of AWS instance are listed in the [APPENDIX A: AWS EC2 Instance](#appendix-a-aws-ec2-instance)
+Details of AWS instance are listed in the [ClickHouse on AWS EC2 Instance](#clickhouse-on-aws-ec2-instance)
 section.
 
 ### Local Desktop Configuration
@@ -173,7 +181,7 @@ documentation][clickhouse-docs].
 
 Data can also be obtained in the form of prepared partitions available from
 ClickHouse. The instructions to obtain data in this form are available in the
-[APPENDIX B: Use Prepared Partitions from ClickHouse](#appendix-b-use-prepared-partitions-from-clickhouse) section.
+[APPENDIX A: Use Prepared Partitions from ClickHouse](#appendix-a-use-prepared-partitions-from-clickhouse) section.
 
 **Below are the steps I followed to create the ClickHouse database, starting
 with raw data on the local machine**:
@@ -682,15 +690,15 @@ $ sudo perf stat -r 10 click-house-client --query=$query
 ![query4 screenshot][query4]
 
 
-## Improving the Benchmarking Process with Automation
+### Improving the Benchmarking Process with Automation
 
 After running the benchmarks as shown above interactively in the terminal,
 I noticed that the accuracy was inconsistent.
 
-I was able to achieve less than 1% variation over 10 runs on all 4 queries repatedly
+I was able to achieve less than 1% variation over 10 runs on all 4 queries repeatedly
 using the following script to run the benchmarks.
 
-This script not only improves the accuracy but also makes it convinient to run
+This script not only improves the accuracy but also makes it convenient to run
 the benchmarks.
 
 ```bash
@@ -711,15 +719,41 @@ GROUP BY passenger_count, year, distance \
 ORDER BY year, count(*) DESC"
 )
 
-printf  "Benchmarking ClickHouse ...\n\n"
+script_dir="$(dirname "$(readlink -f "$0")")"
+log_dir="${script_dir}/../bm_logs"
+mkdir -p "${log_dir}"
+num_repeats=${1:-1}
+log_name="${log_dir}/clickhouse_bm_${num_repeats}r_$(date +%F_%H-%M-%S).log"
 
-for query in "${queries[@]}"; do
-    printf "\n%s\n\n" "$query"
-    sudo perf stat -r 10 clickhouse-client --query="$query" > /dev/null
+printf "\nBenchmarking ClickHouse ...\n\n"
+
+for i in "${!queries[@]}"; do
+    printf "%d: %s\n\n" "$i" "${queries[$i]}"
+    sudo perf stat -r "${num_repeats}" -o "${log_name}" --append clickhouse-client --query="${queries[$i]}" > /dev/null
 done
 ```
 
-## APPENDIX A: AWS EC2 Instance
+### Comparing Benchmark Results
+
+The above script writes the query timings to a log file that can be parsed and
+compared.
+
+#### ClickHouse performance on local machine vs AWS EC2
+
+The timings are an average over 100 runs for each query.
+
+
+![ch-bm-local-aws][ch-bm-local-aws-img]
+
+
+#### ClickHouse vs PostgreSQL performance on local machine
+
+Query 1 took `201.67` seconds on PostgreSQL vs `1.14` seconds on ClickHouse.
+
+![ch-bm-psql][ch-bm-psql-img]
+
+
+## ClickHouse on AWS EC2 Instance
 
 Same steps from the above section are followed on the EC2 instance.
 This section has screenshots and video showing the configuration details and progress
@@ -756,8 +790,83 @@ video. YouTube link: https://www.youtube.com/watch?v=OCzhcYz-YG4
 
 [![aws-video-thumb]][aws-video]
 
+### ClickHouse Performance on AWS EC2 - 10 runs
 
-## APPENDIX B: Use Prepared Partitions from ClickHouse
+```bash
+# started on Mon Feb 25 15:31:24 2019
+
+
+ Performance counter stats for 'clickhouse-client --query=SELECT cab_type, count(*) FROM trips_mergetree GROUP BY cab_type' (10 runs):
+
+         27.791546 task-clock (msec)         #    0.008 CPUs utilized            ( +- 22.99% )
+                48 context-switches          #    0.002 M/sec                    ( +-  8.13% )
+                 4 cpu-migrations            #    0.162 K/sec                    ( +- 43.35% )
+             4,870 page-faults               #    0.175 M/sec                    ( +-  0.07% )
+   <not supported> cycles                  
+   <not supported> stalled-cycles-frontend 
+   <not supported> stalled-cycles-backend  
+   <not supported> instructions            
+   <not supported> branches                
+   <not supported> branch-misses           
+
+       3.539252233 seconds time elapsed                                          ( +-  6.76% )
+
+# started on Mon Feb 25 15:31:59 2019
+
+
+ Performance counter stats for 'clickhouse-client --query=SELECT passenger_count, avg(total_amount) FROM trips_mergetree GROUP BY passenger_count' (10 runs):
+
+         30.646038 task-clock (msec)         #    0.003 CPUs utilized            ( +- 16.13% )
+               117 context-switches          #    0.004 M/sec                    ( +-  5.57% )
+                 3 cpu-migrations            #    0.101 K/sec                    ( +- 25.19% )
+             4,878 page-faults               #    0.159 M/sec                    ( +-  0.01% )
+   <not supported> cycles                  
+   <not supported> stalled-cycles-frontend 
+   <not supported> stalled-cycles-backend  
+   <not supported> instructions            
+   <not supported> branches                
+   <not supported> branch-misses           
+
+      10.347472670 seconds time elapsed                                          ( +-  0.77% )
+
+# started on Mon Feb 25 15:33:43 2019
+
+
+ Performance counter stats for 'clickhouse-client --query=SELECT passenger_count, toYear(pickup_date) AS year, count(*) FROM trips_mergetree GROUP BY passenger_count, year' (10 runs):
+
+         26.997046 task-clock (msec)         #    0.002 CPUs utilized            ( +-  3.02% )
+               178 context-switches          #    0.007 M/sec                    ( +-  1.38% )
+                 5 cpu-migrations            #    0.178 K/sec                    ( +- 32.54% )
+             4,879 page-faults               #    0.181 M/sec                    ( +-  0.04% )
+   <not supported> cycles                  
+   <not supported> stalled-cycles-frontend 
+   <not supported> stalled-cycles-backend  
+   <not supported> instructions            
+   <not supported> branches                
+   <not supported> branch-misses           
+
+      17.168945565 seconds time elapsed                                          ( +-  1.28% )
+
+# started on Mon Feb 25 15:36:34 2019
+
+
+ Performance counter stats for 'clickhouse-client --query=SELECT passenger_count, toYear(pickup_date) AS year, round(trip_distance) AS distance, count(*) FROM trips_mergetree GROUP BY passenger_count, year, distance ORDER BY year, count(*) DESC' (10 runs):
+
+         33.615889 task-clock (msec)         #    0.001 CPUs utilized            ( +-  8.23% )
+               262 context-switches          #    0.008 M/sec                    ( +-  2.13% )
+                 2 cpu-migrations            #    0.051 K/sec                    ( +- 27.80% )
+             5,011 page-faults               #    0.149 M/sec                    ( +-  0.06% )
+   <not supported> cycles                  
+   <not supported> stalled-cycles-frontend 
+   <not supported> stalled-cycles-backend  
+   <not supported> instructions            
+   <not supported> branches                
+   <not supported> branch-misses           
+
+      24.878553324 seconds time elapsed                                          ( +-  0.22% )
+```
+
+## APPENDIX A: Use Prepared Partitions from ClickHouse
 
 ClickHouse followed [Mark's guide][mark-redshift] and obtained the gzipped csv
 files and stored them in an Amazon S3 bucket.
@@ -803,7 +912,7 @@ $ clickhouse-client --query "select count(*) from datasets.trips_mergetree"
 [clickhouse]: https://clickhouse.yandex/
 [prepared-data-status-img]: ./img/prepared_data_status.png
 [aws-video]: https://www.youtube.com/watch?v=OCzhcYz-YG4
-[aws-video-thumb]: https://img.youtube.com/vi/OCzhcYz-YG4/default.jpg
+[aws-video-thumb]: ./img/aws_video_thumb.png
 [aws-data-usage-img]: ./img/aws_data_usage.png
 [ec2-instance-img]: ./img/ec2_instance.png
 [lines-in-trips-img]: ./img/lines_in_trips.png
@@ -817,3 +926,7 @@ $ clickhouse-client --query "select count(*) from datasets.trips_mergetree"
 [benchmark-video]: https://www.youtube.com/watch?v=CZJX4-SahHM
 [clickhouse-import-complete-img]: ./img/clickhouse_import_complete.png
 [importing-into-clickhouse-img]: ./img/importing_into_clickhouse.png
+[ch-bm-local-aws-img]: ./img/ch_bm_local_aws.png
+[ch-bm-psql-img]: ./img/ch_bm_psql.png
+[aws-video1]: https://youtu.be/98BpgZF7Ang
+[aws-video1-thumb]: ./img/aws_video1_thumb.png

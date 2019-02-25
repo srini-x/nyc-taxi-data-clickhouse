@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-script_dir=$(dirname $(readlink -f $0))
+script_dir="$(dirname "$(readlink -f "$0")")"
 log_dir="${script_dir}/../bm_logs"
 mkdir -p "${log_dir}"
 num_repeats=${1:-1}

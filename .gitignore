@@ -1,3 +1,5 @@
 .DS_Store
 bm_logs/
 *.mov
+Pipfile
+Pipfile.lock
